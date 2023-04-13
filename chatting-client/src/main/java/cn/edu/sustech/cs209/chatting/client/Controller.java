@@ -28,7 +28,15 @@ public class Controller implements Initializable {
     @FXML
     ListView<Message> chatContentList;
 
+    @FXML
+    Label currentUsername;
+
+    @FXML
+    Label currentOnlineCnt;
+
     String username;
+
+    Client client;
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
@@ -40,28 +48,30 @@ public class Controller implements Initializable {
 
         Optional<String> input = dialog.showAndWait();
         if (input.isPresent() && !input.get().isEmpty()) {
-            /*
-               TODO: Check if there is a user with the same name among the currently logged-in users,
-                     if so, ask the user to change the username
-             */
             username = input.get();
+            client = new Client("localhost", 2345, username, this);
+            try {
+                client.login();
+            } catch (Exception e) {
+                log.error("Invalid username {}, exiting", input);
+                Platform.exit();
+            }
         } else {
             log.warn("Invalid username {}, exiting", input);
             Platform.exit();
         }
-
+        client.startReceivingPacket();
+        currentUsername.setText("Current User: " + username);
         chatContentList.setCellFactory(new MessageCellFactory());
     }
 
     @FXML
     public void createPrivateChat() {
         AtomicReference<String> user = new AtomicReference<>();
-
         val stage = new Stage();
         val userSel = new ComboBox<String>();
-
-        // FIXME: get the user list from server, the current user's name should be filtered out
-        userSel.getItems().addAll("Item 1", "Item 2", "Item 3");
+        log.info("Users: {}", client.getUsers());
+        userSel.getItems().addAll(client.getUsers());
 
         val okBtn = new Button("OK");
         okBtn.setOnAction(e -> {
@@ -80,15 +90,21 @@ public class Controller implements Initializable {
         // TODO: otherwise, create a new chat item in the left panel, the title should be the selected user's name
     }
 
+    void update() {
+        Platform.runLater(() -> {
+            currentOnlineCnt.setText("Online: " + (client.getUsers().size() + 1));
+        });
+    }
+
     /**
      * A new dialog should contain a multi-select list, showing all user's name.
      * You can select several users that will be joined in the group chat, including yourself.
-     *
+     * <p>
      * The naming rule for group chats is similar to WeChat:
      * If there are > 3 users: display the first three usernames, sorted in lexicographic order, then use ellipsis with the number of users, for example:
-     *     UserA, UserB, UserC... (10)
+     * UserA, UserB, UserC... (10)
      * If there are <= 3 users: do not display the ellipsis, for example:
-     *     UserA, UserB (2)
+     * UserA, UserB (2)
      */
     @FXML
     public void createGroupChat() {
