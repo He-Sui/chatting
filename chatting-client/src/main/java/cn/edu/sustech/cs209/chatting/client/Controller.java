@@ -1,7 +1,10 @@
 package cn.edu.sustech.cs209.chatting.client;
 
 import cn.edu.sustech.cs209.chatting.common.Message;
+import cn.edu.sustech.cs209.chatting.common.Packet;
+import cn.edu.sustech.cs209.chatting.common.PacketType;
 import javafx.application.Platform;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
@@ -15,6 +18,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
 import java.net.URL;
 import java.util.Objects;
 import java.util.Optional;
@@ -28,15 +32,27 @@ public class Controller implements Initializable {
     @FXML
     ListView<Message> chatContentList;
 
+    public ListView<String> getChatList() {
+        return chatList;
+    }
+
     @FXML
     Label currentUsername;
 
     @FXML
     Label currentOnlineCnt;
 
+    @FXML
+    ListView<String> chatList;
+
+    @FXML
+    TextArea inputArea;
+
     String username;
 
     Client client;
+
+    String currentChat;
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
@@ -65,6 +81,15 @@ public class Controller implements Initializable {
         chatContentList.setCellFactory(new MessageCellFactory());
     }
 
+    public void closeClient() {
+        client.getReceivingPacketThread().interrupt();
+        try {
+            client.getSocket().close();
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+    }
+
     @FXML
     public void createPrivateChat() {
         AtomicReference<String> user = new AtomicReference<>();
@@ -85,12 +110,17 @@ public class Controller implements Initializable {
         box.getChildren().addAll(userSel, okBtn);
         stage.setScene(new Scene(box));
         stage.showAndWait();
-
-        // TODO: if the current user already chatted with the selected user, just open the chat with that user
-        // TODO: otherwise, create a new chat item in the left panel, the title should be the selected user's name
+        if (!client.getPrivateChat().contains(user.get())) {
+            client.createPrivateChat(Objects.requireNonNull(user.get()));
+            chatList.getItems().add(user.get());
+        }
+        currentChat = user.get();
+        ObservableList<String> items = chatList.getItems();
+        int index = items.indexOf(currentChat);
+        chatList.getSelectionModel().select(index);
     }
 
-    void update() {
+    void updateOnlineCnt() {
         Platform.runLater(() -> {
             currentOnlineCnt.setText("Online: " + (client.getUsers().size() + 1));
         });
@@ -118,7 +148,37 @@ public class Controller implements Initializable {
      */
     @FXML
     public void doSendMessage() {
-        // TODO
+        if (currentChat != null && !inputArea.getText().isEmpty()) {
+            Message message = Message.builder()
+                    .timestamp(System.currentTimeMillis())
+                    .sentBy(username)
+                    .sendTo(currentChat)
+                    .data(inputArea.getText())
+                    .build();
+            client.sendPacket(Packet.builder()
+                    .type(PacketType.MESSAGE)
+                    .message(message)
+                    .build());
+            client.getMessageList().add(message);
+            chatContentList.getItems().add(message);
+            inputArea.clear();
+        }
+    }
+
+    @FXML
+    public void handleChatSelection() {
+        currentChat = chatList.getSelectionModel().getSelectedItem();
+        updateMessage();
+    }
+
+    public void updateMessage() {
+        log.info(client.getMessageList().stream().map(Message::toString).reduce("", (a, b) -> a + b));
+        Platform.runLater(() -> {
+            chatContentList.getItems().clear();
+            client.getMessageList().stream()
+                    .filter(m -> m.getSendTo().equals(currentChat) || m.getSentBy().equals(currentChat))
+                    .forEach(m -> chatContentList.getItems().add(m));
+        });
     }
 
     /**
@@ -129,34 +189,34 @@ public class Controller implements Initializable {
         @Override
         public ListCell<Message> call(ListView<Message> param) {
             return new ListCell<Message>() {
-
                 @Override
                 public void updateItem(Message msg, boolean empty) {
                     super.updateItem(msg, empty);
-                    if (empty || Objects.isNull(msg)) {
+                    if (empty || msg == null) {
+                        setText(null);
+                        setGraphic(null);
                         return;
                     }
 
-                    val wrapper = new HBox();
-                    val nameLabel = new Label(msg.getSentBy());
-                    val msgLabel = new Label(msg.getData());
+                    Label senderLabel = new Label(msg.getSentBy());
+                    Label msgLabel = new Label(msg.getData());
+                    msgLabel.setWrapText(true);
 
-                    nameLabel.setPrefSize(50, 20);
-                    nameLabel.setWrapText(true);
-                    nameLabel.setStyle("-fx-border-color: black; -fx-border-width: 1px;");
-
-                    if (username.equals(msg.getSentBy())) {
-                        wrapper.setAlignment(Pos.TOP_RIGHT);
-                        wrapper.getChildren().addAll(msgLabel, nameLabel);
-                        msgLabel.setPadding(new Insets(0, 20, 0, 0));
+                    HBox messagePane = new HBox();
+                    if (msg.getSentBy().equals(username)) {
+                        messagePane.setAlignment(Pos.TOP_RIGHT);
+                        msgLabel.setStyle("-fx-background-color: #ADD8E6; -fx-padding: 5px;");
+                        senderLabel.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #0000FF;");
+                        messagePane.getChildren().addAll(msgLabel, senderLabel);
                     } else {
-                        wrapper.setAlignment(Pos.TOP_LEFT);
-                        wrapper.getChildren().addAll(nameLabel, msgLabel);
-                        msgLabel.setPadding(new Insets(0, 0, 0, 20));
+                        messagePane.setAlignment(Pos.TOP_LEFT);
+                        senderLabel.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #008000;");
+                        msgLabel.setStyle("-fx-background-color: #FFFFFF; -fx-padding: 5px;");
+                        messagePane.getChildren().addAll(senderLabel, msgLabel);
                     }
 
                     setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
-                    setGraphic(wrapper);
+                    setGraphic(messagePane);
                 }
             };
         }

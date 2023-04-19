@@ -36,12 +36,14 @@ public class Server {
         users.values().forEach(serverService -> serverService.sendPacket(packet));
     }
 
-    public void forward(Packet packet) {
+    public void forward(Packet packet, String addition) {
         if (packet.getType() == PacketType.MESSAGE) {
             Message message = packet.getMessage();
             if (message == null || message.getSendTo() == null || !users.containsKey(message.getSendTo()))
                 return;
             users.get(message.getSendTo()).sendPacket(packet);
+        }else if(packet.getType() == PacketType.PRIVATE_CHAT){
+            users.get(packet.getAddition()).sendPacket(Packet.builder().type(PacketType.PRIVATE_CHAT).addition(addition).build());
         }
     }
 

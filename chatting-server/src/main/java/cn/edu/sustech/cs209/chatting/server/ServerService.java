@@ -72,7 +72,8 @@ public class ServerService implements Runnable {
 
     private void handlePacket(Packet packet) {
         switch (packet.getType()) {
-            case MESSAGE -> server.forward(packet);
+            case MESSAGE -> server.forward(packet, null);
+            case PRIVATE_CHAT -> server.forward(packet, username);
         }
     }
 

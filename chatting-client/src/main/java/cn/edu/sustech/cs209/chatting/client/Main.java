@@ -18,6 +18,10 @@ public class Main extends Application {
         FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("main.fxml"));
         stage.setScene(new Scene(fxmlLoader.load()));
         stage.setTitle("Chatting Client");
+        Controller controller = fxmlLoader.getController();
+        stage.setOnCloseRequest(e -> {
+            controller.closeClient();
+        });
         stage.show();
     }
 }
