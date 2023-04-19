@@ -172,7 +172,6 @@ public class Controller implements Initializable {
     }
 
     public void updateMessage() {
-        log.info(client.getMessageList().stream().map(Message::toString).reduce("", (a, b) -> a + b));
         Platform.runLater(() -> {
             chatContentList.getItems().clear();
             client.getMessageList().stream()
