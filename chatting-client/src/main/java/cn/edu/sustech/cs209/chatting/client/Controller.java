@@ -244,6 +244,8 @@ public class Controller implements Initializable {
 
     public void updateMessage() {
         Platform.runLater(() -> {
+            if(currentChat == null)
+                return;
             chatContentList.getItems().clear();
             client.getMessageList().get(currentChat.getId())
                     .forEach(chatContentList.getItems()::add);
@@ -254,7 +256,7 @@ public class Controller implements Initializable {
         Platform.runLater(() -> {
             Alert alert = new Alert(Alert.AlertType.WARNING);
             alert.setHeaderText(null);
-            alert.setContentText("服务器关闭");
+            alert.setContentText("The server has been shut down");
             alert.showAndWait();
             Platform.exit();
         });
@@ -321,7 +323,13 @@ public class Controller implements Initializable {
                     msgLabel.setWrapText(true);
 
                     HBox messagePane = new HBox();
-                    if (msg.getSentBy().equals(username)) {
+                    if (msg.getSentBy() == null) {
+                        messagePane.setAlignment(Pos.CENTER);
+                        msgLabel.setStyle("-fx-background-color: #CCCCCC; -fx-padding: 5px;");
+                        senderLabel.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #808080;");
+                        messagePane.getChildren().addAll(senderLabel, msgLabel);
+
+                    } else if (msg.getSentBy().equals(username)) {
                         messagePane.setAlignment(Pos.TOP_RIGHT);
                         msgLabel.setStyle("-fx-background-color: #ADD8E6; -fx-padding: 5px;");
                         senderLabel.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #0000FF;");

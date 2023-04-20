@@ -59,13 +59,28 @@ public class Client {
                 messageList.put(packet.getChatRoom().getId(), new ArrayList<>());
                 controller.updateChatList();
             }
+            case LOGOUT -> {
+                users.remove(packet.getUser().getUsername());
+                controller.updateOnlineCnt();
+                chatRooms.forEach(chatRoom -> {
+                    if (chatRoom.getUsers().contains(packet.getUser().getUsername())) {
+                        messageList.get(chatRoom.getId()).add(Message.builder()
+                                .chatRoomId(chatRoom.getId())
+                                .data("User " + packet.getUser().getUsername() + " has left the chat room")
+                                .build());
+                    }
+                });
+                controller.updateMessage();
+            }
         }
     }
 
     public void startReceivingPacket() {
         receivingPacketThread = new Thread(() -> {
-            while (!receivingPacketThread.isInterrupted()) {
+            while (true) {
                 Packet packet = receivePacket();
+                if (receivingPacketThread.isInterrupted())
+                    break;
                 if (packet == null) {
                     controller.serverLogout();
                     break;
@@ -101,6 +116,11 @@ public class Client {
             chatRooms.add(chatRoom);
             messageList.put(chatRoom.getId(), new ArrayList<>());
             sendPacket(Packet.builder().type(PacketType.CREATE_CHAT).user(User.builder().username(username).build()).chatRoom(chatRoom).build());
+            Message welcomeMessage = Message.builder()
+                    .chatRoomId(chatRoom.getId())
+                    .data("Successfully created a private chat" )
+                    .build();
+            sendPacket(Packet.builder().type(PacketType.MESSAGE).message(welcomeMessage).build());
             return chatRoom;
         } else
             return chatRooms.stream()
@@ -122,6 +142,11 @@ public class Client {
             chatRooms.add(chatRoom);
             messageList.put(chatRoom.getId(), new ArrayList<>());
             sendPacket(Packet.builder().type(PacketType.CREATE_CHAT).user(User.builder().username(username).build()).chatRoom(chatRoom).build());
+            Message welcomeMessage = Message.builder()
+                    .chatRoomId(chatRoom.getId())
+                    .data("Successfully created chat room")
+                    .build();
+            sendPacket(Packet.builder().type(PacketType.MESSAGE).message(welcomeMessage).build());
             return chatRoom;
         } else
             return chatRooms.stream()

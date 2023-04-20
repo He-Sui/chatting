@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,25 +17,27 @@ import java.util.concurrent.ConcurrentHashMap;
 @Getter
 public class Server {
     private final ServerSocket serverSocket;
-    private final Map<String, ServerService> users;
+    private final Map<String, ServerService> onlineUsers;
     private final Map<String, ChatRoom> chatRooms = new HashMap<>();
+    private final Set<User> users;
 
     public Server(int port) {
         try {
             serverSocket = new ServerSocket(port);
+            users = new HashSet<>();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        users = new ConcurrentHashMap<>();
+        onlineUsers = new ConcurrentHashMap<>();
     }
 
     public void addUser(String username, ServerService serverService) {
         notifyAllUsers(Packet.builder().type(PacketType.NEW_USER).user(User.builder().username(username).build()).build());
-        users.put(username, serverService);
+        onlineUsers.put(username, serverService);
     }
 
     public void notifyAllUsers(Packet packet) {
-        users.values().forEach(serverService -> serverService.sendPacket(packet));
+        onlineUsers.values().forEach(serverService -> serverService.sendPacket(packet));
     }
 
     public void forward(Packet packet) {
@@ -45,12 +48,14 @@ public class Server {
             Set<String> userInChatRoom = chatRooms.get(message.getChatRoomId()).getUsers();
             userInChatRoom.stream()
                     .filter(user -> !user.equals(message.getSentBy()))
-                    .forEach(user -> users.get(user).sendPacket(Packet.builder().type(PacketType.MESSAGE).message(message).build()));
+                    .filter(onlineUsers::containsKey)
+                    .forEach(user -> onlineUsers.get(user).sendPacket(Packet.builder().type(PacketType.MESSAGE).message(message).build()));
         } else if (packet.getType() == PacketType.CREATE_CHAT) {
             ChatRoom chatRoom = packet.getChatRoom();
             chatRoom.getUsers().stream()
                     .filter(user -> !user.equals(packet.getUser().getUsername()))
-                    .forEach(user -> users.get(user).sendPacket(Packet.builder().type(PacketType.CREATE_CHAT).chatRoom(chatRoom).build()));
+                    .filter(onlineUsers::containsKey)
+                    .forEach(user -> onlineUsers.get(user).sendPacket(Packet.builder().type(PacketType.CREATE_CHAT).chatRoom(chatRoom).build()));
         }
     }
 
@@ -63,5 +68,10 @@ public class Server {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void clientLogout(String username) {
+        onlineUsers.remove(username);
+        notifyAllUsers(Packet.builder().type(PacketType.LOGOUT).user(User.builder().username(username).build()).build());
     }
 }

@@ -58,14 +58,14 @@ public class ServerService implements Runnable {
             sendPacket(Packet.builder().type(PacketType.LOGIN_FAILED).build());
         else {
             username = packet.getUser().getUsername();
-            if (server.getUsers().containsKey(username))
+            if (server.getOnlineUsers().containsKey(username))
                 sendPacket(Packet.builder().type(PacketType.LOGIN_FAILED).build());
             else if (username == null || username.equals(""))
                 sendPacket(Packet.builder().type(PacketType.LOGIN_FAILED).build());
             else {
                 log.info("User {} logged in", username);
                 sendPacket(Packet.builder().type(PacketType.LOGIN_SUCCESS).build());
-                server.getUsers().keySet().forEach(user -> sendPacket(Packet.builder().type(PacketType.NEW_USER).user(User.builder().username(user).build()).build()));
+                server.getOnlineUsers().keySet().forEach(user -> sendPacket(Packet.builder().type(PacketType.NEW_USER).user(User.builder().username(user).build()).build()));
                 server.addUser(username, this);
             }
         }
@@ -91,7 +91,7 @@ public class ServerService implements Runnable {
                     handlePacket(packet);
                 }
             } catch (RuntimeException e) {
-                e.printStackTrace();
+                server.clientLogout(username);
             } finally {
                 socket.close();
             }
