@@ -2,7 +2,6 @@ package cn.edu.sustech.cs209.chatting.client;
 
 import cn.edu.sustech.cs209.chatting.common.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import javafx.application.Platform;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,11 +36,13 @@ public class Client {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException(e.getMessage());
         }
     }
 
     public void handlePacket(Packet packet) {
+        if (packet == null)
+            return;
         switch (packet.getType()) {
             case MESSAGE -> {
                 messageList.get(packet.getMessage().getChatRoomId()).add(packet.getMessage());
@@ -64,7 +65,12 @@ public class Client {
     public void startReceivingPacket() {
         receivingPacketThread = new Thread(() -> {
             while (!receivingPacketThread.isInterrupted()) {
-                handlePacket(receivePacket());
+                Packet packet = receivePacket();
+                if (packet == null) {
+                    controller.serverLogout();
+                    break;
+                }
+                handlePacket(packet);
             }
         });
         receivingPacketThread.start();
@@ -104,6 +110,27 @@ public class Client {
                     .orElse(null);
     }
 
+    public ChatRoom createGroupChat(Set<String> user) {
+        user.add(username);
+        if (chatRooms.stream()
+                .filter(r -> r.getType() == ChatType.GROUP_CHAT)
+                .map(ChatRoom::getUsers)
+                .noneMatch(u -> u.equals(user))) {
+            ChatRoom chatRoom = ChatRoom.builder()
+                    .id(UUID.randomUUID().toString())
+                    .type(ChatType.GROUP_CHAT).users(user).build();
+            chatRooms.add(chatRoom);
+            messageList.put(chatRoom.getId(), new ArrayList<>());
+            sendPacket(Packet.builder().type(PacketType.CREATE_CHAT).user(User.builder().username(username).build()).chatRoom(chatRoom).build());
+            return chatRoom;
+        } else
+            return chatRooms.stream()
+                    .filter(r -> r.getType() == ChatType.GROUP_CHAT)
+                    .filter(r -> r.getUsers().equals(user))
+                    .findFirst()
+                    .orElse(null);
+    }
+
     public void sendPacket(Packet packet) {
         try {
             out.write(objectMapper.writeValueAsString(packet));
@@ -111,17 +138,21 @@ public class Client {
             out.flush();
             log.info("Sent packet to server: {}", packet);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            log.error(e.getMessage());
         }
     }
 
     public Packet receivePacket() {
         try {
-            Packet packet = objectMapper.readValue(in.readLine(), Packet.class);
-            log.info("Received packet from server: {}", packet);
-            return packet;
+            String p = in.readLine();
+            if (p != null) {
+                Packet packet = objectMapper.readValue(p, Packet.class);
+                log.info("Received packet from server: {}", packet);
+                return packet;
+            }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            log.error(e.getMessage());
         }
+        return null;
     }
 }

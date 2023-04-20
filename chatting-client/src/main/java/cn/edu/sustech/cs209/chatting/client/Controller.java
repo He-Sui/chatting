@@ -2,6 +2,7 @@ package cn.edu.sustech.cs209.chatting.client;
 
 import cn.edu.sustech.cs209.chatting.common.*;
 import javafx.application.Platform;
+import javafx.beans.value.ObservableValue;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -9,7 +10,9 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.control.cell.CheckBoxListCell;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.util.Callback;
 import lombok.*;
@@ -90,26 +93,41 @@ public class Controller implements Initializable {
         AtomicReference<String> user = new AtomicReference<>();
         val stage = new Stage();
         val userSel = new ComboBox<String>();
-        log.info("Users: {}", client.getUsers());
         userSel.getItems().addAll(client.getUsers());
-
         val okBtn = new Button("OK");
         okBtn.setOnAction(e -> {
             user.set(userSel.getSelectionModel().getSelectedItem());
+            if (user.get() == null) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setHeaderText(null);
+                alert.setContentText("Please select a user to start a private chat.");
+                alert.showAndWait();
+            } else {
+                currentChat = client.createPrivateChat(user.get());
+                updateChatList();
+                updateMessage();
+                stage.close();
+            }
+        });
+        val cancelBtn = new Button("Cancel");
+        cancelBtn.setOnAction(e -> {
             stage.close();
         });
-
-        val box = new HBox(10);
-        box.setAlignment(Pos.CENTER);
-        box.setPadding(new Insets(20, 20, 20, 20));
-        box.getChildren().addAll(userSel, okBtn);
-        stage.setScene(new Scene(box));
+        val vbox = new VBox(10);
+        vbox.setAlignment(Pos.CENTER);
+        vbox.setPadding(new Insets(20, 20, 20, 20));
+        vbox.getChildren().addAll(
+                new Label("Select a user to start a private chat with:"),
+                userSel,
+                new HBox(10, okBtn, cancelBtn) {{
+                    setAlignment(Pos.CENTER);
+                }}
+        );
+        Scene scene = new Scene(vbox, 300, 150);
+        stage.setScene(scene);
         stage.showAndWait();
-
-        currentChat = client.createPrivateChat(Objects.requireNonNull(user.get()));
-        updateChatList();
-        updateMessage();
     }
+
 
     public void updateOnlineCnt() {
         Platform.runLater(() -> {
@@ -139,7 +157,59 @@ public class Controller implements Initializable {
      */
     @FXML
     public void createGroupChat() {
+        val stage = new Stage();
+        val userListView = new ListView<String>();
+        Set<String> selectedUsers = new HashSet<>();
+        userListView.getItems().addAll(client.getUsers());
+        userListView.setCellFactory(CheckBoxListCell.forListView(new Callback<String, ObservableValue<Boolean>>() {
+            @Override
+            public ObservableValue<Boolean> call(String item) {
+                CheckBox checkBox = new CheckBox(item);
+                checkBox.selectedProperty().addListener((observable, oldValue, newValue) -> {
+                    if (newValue)
+                        selectedUsers.add(item);
+                    else
+                        selectedUsers.remove(item);
+                });
+                return checkBox.selectedProperty();
+            }
+        }));
+
+        val okBtn = new Button("OK");
+        okBtn.setOnAction(e -> {
+            if (selectedUsers.isEmpty()) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setHeaderText(null);
+                alert.setContentText("Please select at least one user to start a group chat with.");
+                alert.showAndWait();
+            } else {
+                currentChat = client.createGroupChat(selectedUsers);
+                updateChatList();
+                updateMessage();
+                stage.close();
+            }
+        });
+
+        val cancelBtn = new Button("Cancel");
+        cancelBtn.setOnAction(e -> stage.close());
+
+        val buttonBox = new HBox(10, okBtn, cancelBtn);
+        buttonBox.setAlignment(Pos.CENTER);
+
+        val vbox = new VBox(10);
+        vbox.setAlignment(Pos.CENTER);
+        vbox.setPadding(new Insets(20, 20, 20, 20));
+        vbox.getChildren().addAll(
+                new Label("Select users to start a group chat with:"),
+                userListView,
+                buttonBox
+        );
+
+        Scene scene = new Scene(vbox, 300, 400);
+        stage.setScene(scene);
+        stage.showAndWait();
     }
+
 
     /**
      * Sends the message to the <b>currently selected</b> chat.
@@ -178,6 +248,17 @@ public class Controller implements Initializable {
             client.getMessageList().get(currentChat.getId())
                     .forEach(chatContentList.getItems()::add);
         });
+    }
+
+    public void serverLogout() {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setHeaderText(null);
+            alert.setContentText("服务器关闭");
+            alert.showAndWait();
+            Platform.exit();
+        });
+
     }
 
     public class ChatRoomCellFactory implements Callback<ListView<ChatRoom>, ListCell<ChatRoom>> {

@@ -1,6 +1,5 @@
 package cn.edu.sustech.cs209.chatting.server;
 
-import cn.edu.sustech.cs209.chatting.common.ChatRoom;
 import cn.edu.sustech.cs209.chatting.common.Packet;
 import cn.edu.sustech.cs209.chatting.common.PacketType;
 import cn.edu.sustech.cs209.chatting.common.User;
