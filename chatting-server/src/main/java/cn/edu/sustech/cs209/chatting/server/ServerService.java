@@ -1,7 +1,9 @@
 package cn.edu.sustech.cs209.chatting.server;
 
+import cn.edu.sustech.cs209.chatting.common.ChatRoom;
 import cn.edu.sustech.cs209.chatting.common.Packet;
 import cn.edu.sustech.cs209.chatting.common.PacketType;
+import cn.edu.sustech.cs209.chatting.common.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
@@ -54,17 +56,17 @@ public class ServerService implements Runnable {
     public void login() {
         Packet packet = receivePacket();
         if (packet.getType() != PacketType.LOGIN)
-            sendPacket(Packet.builder().type(PacketType.LOGIN_FAILED).addition("invalid request").build());
+            sendPacket(Packet.builder().type(PacketType.LOGIN_FAILED).build());
         else {
-            username = packet.getAddition();
+            username = packet.getUser().getUsername();
             if (server.getUsers().containsKey(username))
-                sendPacket(Packet.builder().type(PacketType.LOGIN_FAILED).addition("username already exists").build());
+                sendPacket(Packet.builder().type(PacketType.LOGIN_FAILED).build());
             else if (username == null || username.equals(""))
-                sendPacket(Packet.builder().type(PacketType.LOGIN_FAILED).addition("username cannot be empty").build());
+                sendPacket(Packet.builder().type(PacketType.LOGIN_FAILED).build());
             else {
                 log.info("User {} logged in", username);
                 sendPacket(Packet.builder().type(PacketType.LOGIN_SUCCESS).build());
-                server.getUsers().keySet().forEach(user -> sendPacket(Packet.builder().type(PacketType.NEW_USER).addition(user).build()));
+                server.getUsers().keySet().forEach(user -> sendPacket(Packet.builder().type(PacketType.NEW_USER).user(User.builder().username(user).build()).build()));
                 server.addUser(username, this);
             }
         }
@@ -72,8 +74,11 @@ public class ServerService implements Runnable {
 
     private void handlePacket(Packet packet) {
         switch (packet.getType()) {
-            case MESSAGE -> server.forward(packet, null);
-            case PRIVATE_CHAT -> server.forward(packet, username);
+            case MESSAGE -> server.forward(packet);
+            case CREATE_CHAT -> {
+                server.getChatRooms().put(packet.getChatRoom().getId(), packet.getChatRoom());
+                server.forward(packet);
+            }
         }
     }
 

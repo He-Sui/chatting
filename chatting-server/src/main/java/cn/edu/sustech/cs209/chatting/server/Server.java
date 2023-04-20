@@ -1,15 +1,15 @@
 package cn.edu.sustech.cs209.chatting.server;
 
-import cn.edu.sustech.cs209.chatting.common.Message;
-import cn.edu.sustech.cs209.chatting.common.Packet;
-import cn.edu.sustech.cs209.chatting.common.PacketType;
+import cn.edu.sustech.cs209.chatting.common.*;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class Server {
     private final ServerSocket serverSocket;
     private final Map<String, ServerService> users;
+    private final Map<String, ChatRoom> chatRooms = new HashMap<>();
 
     public Server(int port) {
         try {
@@ -28,7 +29,7 @@ public class Server {
     }
 
     public void addUser(String username, ServerService serverService) {
-        notifyAllUsers(Packet.builder().type(PacketType.NEW_USER).addition(username).build());
+        notifyAllUsers(Packet.builder().type(PacketType.NEW_USER).user(User.builder().username(username).build()).build());
         users.put(username, serverService);
     }
 
@@ -36,14 +37,20 @@ public class Server {
         users.values().forEach(serverService -> serverService.sendPacket(packet));
     }
 
-    public void forward(Packet packet, String addition) {
+    public void forward(Packet packet) {
         if (packet.getType() == PacketType.MESSAGE) {
             Message message = packet.getMessage();
-            if (message == null || message.getSendTo() == null || !users.containsKey(message.getSendTo()))
+            if (message == null || message.getChatRoomId() == null || chatRooms.get(message.getChatRoomId()) == null)
                 return;
-            users.get(message.getSendTo()).sendPacket(packet);
-        }else if(packet.getType() == PacketType.PRIVATE_CHAT){
-            users.get(packet.getAddition()).sendPacket(Packet.builder().type(PacketType.PRIVATE_CHAT).addition(addition).build());
+            Set<String> userInChatRoom = chatRooms.get(message.getChatRoomId()).getUsers();
+            userInChatRoom.stream()
+                    .filter(user -> !user.equals(message.getSentBy()))
+                    .forEach(user -> users.get(user).sendPacket(Packet.builder().type(PacketType.MESSAGE).message(message).build()));
+        } else if (packet.getType() == PacketType.CREATE_CHAT) {
+            ChatRoom chatRoom = packet.getChatRoom();
+            chatRoom.getUsers().stream()
+                    .filter(user -> !user.equals(packet.getUser().getUsername()))
+                    .forEach(user -> users.get(user).sendPacket(Packet.builder().type(PacketType.CREATE_CHAT).chatRoom(chatRoom).build()));
         }
     }
 

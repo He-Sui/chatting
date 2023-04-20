@@ -1,8 +1,6 @@
 package cn.edu.sustech.cs209.chatting.client;
 
-import cn.edu.sustech.cs209.chatting.common.Message;
-import cn.edu.sustech.cs209.chatting.common.Packet;
-import cn.edu.sustech.cs209.chatting.common.PacketType;
+import cn.edu.sustech.cs209.chatting.common.*;
 import javafx.application.Platform;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
@@ -18,12 +16,12 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 
+
 import java.io.IOException;
 import java.net.URL;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.ResourceBundle;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
@@ -32,10 +30,6 @@ public class Controller implements Initializable {
     @FXML
     ListView<Message> chatContentList;
 
-    public ListView<String> getChatList() {
-        return chatList;
-    }
-
     @FXML
     Label currentUsername;
 
@@ -43,7 +37,7 @@ public class Controller implements Initializable {
     Label currentOnlineCnt;
 
     @FXML
-    ListView<String> chatList;
+    ListView<ChatRoom> chatList;
 
     @FXML
     TextArea inputArea;
@@ -52,7 +46,7 @@ public class Controller implements Initializable {
 
     Client client;
 
-    String currentChat;
+    ChatRoom currentChat;
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
@@ -79,6 +73,7 @@ public class Controller implements Initializable {
         client.startReceivingPacket();
         currentUsername.setText("Current User: " + username);
         chatContentList.setCellFactory(new MessageCellFactory());
+        chatList.setCellFactory(new ChatRoomCellFactory());
     }
 
     public void closeClient() {
@@ -110,19 +105,25 @@ public class Controller implements Initializable {
         box.getChildren().addAll(userSel, okBtn);
         stage.setScene(new Scene(box));
         stage.showAndWait();
-        if (!client.getPrivateChat().contains(user.get())) {
-            client.createPrivateChat(Objects.requireNonNull(user.get()));
-            chatList.getItems().add(user.get());
-        }
-        currentChat = user.get();
-        ObservableList<String> items = chatList.getItems();
-        int index = items.indexOf(currentChat);
-        chatList.getSelectionModel().select(index);
+
+        currentChat = client.createPrivateChat(Objects.requireNonNull(user.get()));
+        updateChatList();
+        updateMessage();
     }
 
-    void updateOnlineCnt() {
+    public void updateOnlineCnt() {
         Platform.runLater(() -> {
             currentOnlineCnt.setText("Online: " + (client.getUsers().size() + 1));
+        });
+    }
+
+    public void updateChatList() {
+        Platform.runLater(() -> {
+            chatList.getItems().clear();
+            chatList.getItems().addAll(client.getChatRooms());
+            ObservableList<ChatRoom> chatRooms = chatList.getItems();
+            int index = chatRooms.indexOf(currentChat);
+            chatList.getSelectionModel().select(index);
         });
     }
 
@@ -152,14 +153,14 @@ public class Controller implements Initializable {
             Message message = Message.builder()
                     .timestamp(System.currentTimeMillis())
                     .sentBy(username)
-                    .sendTo(currentChat)
+                    .chatRoomId(currentChat.getId())
                     .data(inputArea.getText())
                     .build();
             client.sendPacket(Packet.builder()
                     .type(PacketType.MESSAGE)
                     .message(message)
                     .build());
-            client.getMessageList().add(message);
+            client.getMessageList().get(currentChat.getId()).add(message);
             chatContentList.getItems().add(message);
             inputArea.clear();
         }
@@ -174,10 +175,47 @@ public class Controller implements Initializable {
     public void updateMessage() {
         Platform.runLater(() -> {
             chatContentList.getItems().clear();
-            client.getMessageList().stream()
-                    .filter(m -> m.getSendTo().equals(currentChat) || m.getSentBy().equals(currentChat))
-                    .forEach(m -> chatContentList.getItems().add(m));
+            client.getMessageList().get(currentChat.getId())
+                    .forEach(chatContentList.getItems()::add);
         });
+    }
+
+    public class ChatRoomCellFactory implements Callback<ListView<ChatRoom>, ListCell<ChatRoom>> {
+
+        @Override
+        public ListCell<ChatRoom> call(ListView<ChatRoom> param) {
+            return new ListCell<ChatRoom>() {
+
+                @Override
+                public void updateItem(ChatRoom item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null) {
+                        setText(null);
+                        setGraphic(null);
+                        return;
+                    }
+                    if (item.getType() == ChatType.PRIVATE_CHAT)
+                        setText(item.getUsers().stream().filter(u -> !u.equals(username)).findFirst().orElse(""));
+                    else {
+                        if (item.getUsers().size() <= 3)
+                            setText(item.getUsers().stream()
+                                    .sorted()
+                                    .collect(Collectors.joining(", "))
+                                    .concat(" (")
+                                    .concat(String.valueOf(item.getUsers().size()))
+                                    .concat(")"));
+                        else
+                            setText(item.getUsers().stream()
+                                    .sorted()
+                                    .limit(3)
+                                    .collect(Collectors.joining(", "))
+                                    .concat("... (")
+                                    .concat(String.valueOf(item.getUsers().size()))
+                                    .concat(")"));
+                    }
+                }
+            };
+        }
     }
 
     /**

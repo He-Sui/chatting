@@ -1,8 +1,6 @@
 package cn.edu.sustech.cs209.chatting.client;
 
-import cn.edu.sustech.cs209.chatting.common.Message;
-import cn.edu.sustech.cs209.chatting.common.Packet;
-import cn.edu.sustech.cs209.chatting.common.PacketType;
+import cn.edu.sustech.cs209.chatting.common.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.application.Platform;
 import lombok.Getter;
@@ -10,10 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Getter
 @Slf4j
@@ -24,20 +19,19 @@ public class Client {
     private final BufferedWriter out;
     private String username;
     private final ObjectMapper objectMapper;
-    private Set<String> users;
+    private final Set<String> users;
 
-    private Set<String> privateChat;
-
-    private List<Message> messageList;
+    private final Set<ChatRoom> chatRooms;
+    private final Map<String, List<Message>> messageList;
     private Thread receivingPacketThread;
 
     public Client(String host, int port, String username, Controller controller) {
-        privateChat = new HashSet<>();
+        chatRooms = new HashSet<>();
         this.controller = controller;
         objectMapper = new ObjectMapper();
         this.username = username;
         users = new HashSet<>();
-        messageList = new ArrayList<>();
+        messageList = new HashMap<>();
         try {
             socket = new Socket(host, port);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -50,20 +44,19 @@ public class Client {
     public void handlePacket(Packet packet) {
         switch (packet.getType()) {
             case MESSAGE -> {
-                messageList.add(packet.getMessage());
+                messageList.get(packet.getMessage().getChatRoomId()).add(packet.getMessage());
                 controller.updateMessage();
             }
             case NEW_USER -> {
-                if (!packet.getAddition().equals(username)) {
-                    users.add(packet.getAddition());
+                if (!packet.getUser().getUsername().equals(username)) {
+                    users.add(packet.getUser().getUsername());
                     controller.updateOnlineCnt();
                 }
             }
-            case PRIVATE_CHAT -> {
-                privateChat.add(packet.getAddition());
-                Platform.runLater(() -> {
-                    controller.getChatList().getItems().add(packet.getAddition());
-                });
+            case CREATE_CHAT -> {
+                chatRooms.add(packet.getChatRoom());
+                messageList.put(packet.getChatRoom().getId(), new ArrayList<>());
+                controller.updateChatList();
             }
         }
     }
@@ -78,19 +71,37 @@ public class Client {
     }
 
     public void login() {
-        sendPacket(Packet.builder().type(PacketType.LOGIN).addition(username).build());
+        sendPacket(Packet.builder().type(PacketType.LOGIN).user(User.builder().username(username).build()).build());
         Packet receive = receivePacket();
         if (receive.getType() == PacketType.LOGIN_SUCCESS) {
-            log.info("Login success");
+            log.info("Login Success");
         } else {
-            log.info("Login failed: {}", receive.getAddition());
-            throw new RuntimeException("Login failed: " + receive.getAddition());
+            log.info("Login Failed");
+            throw new RuntimeException("Login Failed");
         }
     }
 
-    public void createPrivateChat(String username) {
-        privateChat.add(username);
-        sendPacket(Packet.builder().type(PacketType.PRIVATE_CHAT).addition(username).build());
+    public ChatRoom createPrivateChat(String name) {
+        if (chatRooms.stream()
+                .filter(r -> r.getType() == ChatType.PRIVATE_CHAT)
+                .map(ChatRoom::getUsers)
+                .noneMatch(u -> u.contains(name))) {
+            Set<String> user = new HashSet<>();
+            user.add(username);
+            user.add(name);
+            ChatRoom chatRoom = ChatRoom.builder()
+                    .id(UUID.randomUUID().toString())
+                    .type(ChatType.PRIVATE_CHAT).users(user).build();
+            chatRooms.add(chatRoom);
+            messageList.put(chatRoom.getId(), new ArrayList<>());
+            sendPacket(Packet.builder().type(PacketType.CREATE_CHAT).user(User.builder().username(username).build()).chatRoom(chatRoom).build());
+            return chatRoom;
+        } else
+            return chatRooms.stream()
+                    .filter(r -> r.getType() == ChatType.PRIVATE_CHAT)
+                    .filter(r -> r.getUsers().contains(name))
+                    .findFirst()
+                    .orElse(null);
     }
 
     public void sendPacket(Packet packet) {

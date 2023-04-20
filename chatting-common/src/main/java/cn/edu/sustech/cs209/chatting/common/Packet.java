@@ -9,15 +9,18 @@ import lombok.Data;
 @Builder
 public class Packet {
     private PacketType type;
-    private String addition;
+    private User user;
+    private ChatRoom chatRoom;
     private Message message;
 
     @JsonCreator
     public Packet(@JsonProperty("type") PacketType type,
-                  @JsonProperty("addition") String addition,
+                  @JsonProperty("user") User user,
+                  @JsonProperty("chatRoom") ChatRoom chatRoom,
                   @JsonProperty("message") Message message) {
         this.type = type;
-        this.addition = addition;
+        this.user = user;
+        this.chatRoom = chatRoom;
         this.message = message;
     }
 }
