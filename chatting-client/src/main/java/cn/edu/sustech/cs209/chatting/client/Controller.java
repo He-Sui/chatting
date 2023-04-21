@@ -8,9 +8,13 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.CheckBoxListCell;
+import javafx.scene.input.DragEvent;
+import javafx.scene.input.Dragboard;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
@@ -20,6 +24,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.util.*;
@@ -73,6 +78,30 @@ public class Controller implements Initializable {
             log.warn("Invalid username {}, exiting", input);
             Platform.exit();
         }
+        inputArea.setOnDragOver(event -> {
+            if (event.getGestureSource() != inputArea && event.getDragboard().hasFiles()) {
+                event.acceptTransferModes(TransferMode.COPY_OR_MOVE);
+                event.consume();
+            }
+        });
+        inputArea.setOnDragDropped(event -> {
+            if (currentChat == null)
+                return;
+            Dragboard db = event.getDragboard();
+            if (db.hasFiles()) {
+                File file = db.getFiles().get(0);
+                Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+                alert.setTitle("Confirmation");
+                alert.setHeaderText("Are you sure you want to send this file?");
+                alert.setContentText("Press OK to confirm, or Cancel to abort.");
+                Optional<ButtonType> result = alert.showAndWait();
+                if (result.isPresent() && result.get() == ButtonType.OK) {
+                    client.sendFile(currentChat.getId(), file);
+                }
+            }
+            event.setDropCompleted(true);
+            event.consume();
+        });
         client.startReceivingPacket();
         currentUsername.setText("Current User: " + username);
         chatContentList.setCellFactory(new MessageCellFactory());
@@ -138,7 +167,14 @@ public class Controller implements Initializable {
     public void updateChatList() {
         Platform.runLater(() -> {
             chatList.getItems().clear();
-            chatList.getItems().addAll(client.getChatRooms());
+            chatList.getItems().addAll(client.getChatRooms().stream().sorted((c1, c2) -> {
+                        List<Message> m1 = client.getMessageList().get(c1.getId());
+                        List<Message> m2 = client.getMessageList().get(c2.getId());
+                        Long t1 = m1 == null || m1.isEmpty() ? 0 : m1.get(m1.size() - 1).getTimestamp();
+                        Long t2 = m2 == null || m2.isEmpty() ? 0 : m2.get(m2.size() - 1).getTimestamp();
+                        return t2.compareTo(t1);
+                    }
+            ).toList());
             ObservableList<ChatRoom> chatRooms = chatList.getItems();
             int index = chatRooms.indexOf(currentChat);
             chatList.getSelectionModel().select(index);
@@ -221,6 +257,7 @@ public class Controller implements Initializable {
     public void doSendMessage() {
         if (currentChat != null && !inputArea.getText().isEmpty()) {
             Message message = Message.builder()
+                    .type(MessageType.TEXT)
                     .timestamp(System.currentTimeMillis())
                     .sentBy(username)
                     .chatRoomId(currentChat.getId())
@@ -233,6 +270,7 @@ public class Controller implements Initializable {
             client.getMessageList().get(currentChat.getId()).add(message);
             chatContentList.getItems().add(message);
             inputArea.clear();
+            updateChatList();
         }
     }
 
@@ -244,7 +282,7 @@ public class Controller implements Initializable {
 
     public void updateMessage() {
         Platform.runLater(() -> {
-            if(currentChat == null)
+            if (currentChat == null)
                 return;
             chatContentList.getItems().clear();
             client.getMessageList().get(currentChat.getId())
@@ -280,21 +318,21 @@ public class Controller implements Initializable {
                     if (item.getType() == ChatType.PRIVATE_CHAT)
                         setText(item.getUsers().stream().filter(u -> !u.equals(username)).findFirst().orElse(""));
                     else {
-                        if (item.getUsers().size() <= 3)
-                            setText(item.getUsers().stream()
-                                    .sorted()
-                                    .collect(Collectors.joining(", "))
-                                    .concat(" (")
-                                    .concat(String.valueOf(item.getUsers().size()))
-                                    .concat(")"));
-                        else
-                            setText(item.getUsers().stream()
-                                    .sorted()
-                                    .limit(3)
-                                    .collect(Collectors.joining(", "))
-                                    .concat("... (")
-                                    .concat(String.valueOf(item.getUsers().size()))
-                                    .concat(")"));
+//                        if (item.getUsers().size() <= 3)
+                        setText(item.getUsers().stream()
+                                .sorted()
+                                .collect(Collectors.joining(", "))
+                                .concat(" (")
+                                .concat(String.valueOf(item.getUsers().size()))
+                                .concat(")"));
+//                        else
+//                            setText(item.getUsers().stream()
+//                                    .sorted()
+//                                    .limit(3)
+//                                    .collect(Collectors.joining(", "))
+//                                    .concat("... (")
+//                                    .concat(String.valueOf(item.getUsers().size()))
+//                                    .concat(")"));
                     }
                 }
             };
@@ -318,33 +356,60 @@ public class Controller implements Initializable {
                         return;
                     }
 
-                    Label senderLabel = new Label(msg.getSentBy());
-                    Label msgLabel = new Label(msg.getData());
-                    msgLabel.setWrapText(true);
-
                     HBox messagePane = new HBox();
-                    if (msg.getSentBy() == null) {
-                        messagePane.setAlignment(Pos.CENTER);
-                        msgLabel.setStyle("-fx-background-color: #CCCCCC; -fx-padding: 5px;");
-                        senderLabel.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #808080;");
-                        messagePane.getChildren().addAll(senderLabel, msgLabel);
+                    Label senderLabel = new Label(msg.getSentBy());
+                    senderLabel.setStyle("-fx-font-size: 10px; -fx-font-weight: bold;");
+                    if (msg.getType() == MessageType.TEXT) {
+                        Label msgLabel = new Label(msg.getData());
+                        msgLabel.setWrapText(true);
+                        if (msg.getSentBy() == null) {
+                            messagePane.setAlignment(Pos.CENTER);
+                            msgLabel.setStyle("-fx-background-color: #CCCCCC; -fx-padding: 5px;");
+                            senderLabel.setStyle("-fx-text-fill: #808080;");
+                            messagePane.getChildren().add(msgLabel);
+                        } else if (msg.getSentBy().equals(username)) {
+                            messagePane.setAlignment(Pos.TOP_RIGHT);
+                            msgLabel.setStyle("-fx-background-color: #ADD8E6; -fx-padding: 5px;");
+                            senderLabel.setStyle("-fx-text-fill: #0000FF;");
+                            messagePane.getChildren().addAll(msgLabel, senderLabel);
+                        } else {
+                            messagePane.setAlignment(Pos.TOP_LEFT);
+                            msgLabel.setStyle("-fx-background-color: #FFFFFF; -fx-padding: 5px;");
+                            senderLabel.setStyle("-fx-text-fill: #008000;");
+                            messagePane.getChildren().addAll(senderLabel, msgLabel);
+                        }
 
-                    } else if (msg.getSentBy().equals(username)) {
-                        messagePane.setAlignment(Pos.TOP_RIGHT);
-                        msgLabel.setStyle("-fx-background-color: #ADD8E6; -fx-padding: 5px;");
-                        senderLabel.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #0000FF;");
-                        messagePane.getChildren().addAll(msgLabel, senderLabel);
-                    } else {
-                        messagePane.setAlignment(Pos.TOP_LEFT);
-                        senderLabel.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #008000;");
-                        msgLabel.setStyle("-fx-background-color: #FFFFFF; -fx-padding: 5px;");
-                        messagePane.getChildren().addAll(senderLabel, msgLabel);
+                    } else if (msg.getType() == MessageType.FILE) {
+                        // 文件消息
+                        Label fileLabel = new Label(msg.getFileName());
+                        fileLabel.setStyle("-fx-background-color: #FFFFFF; -fx-padding: 5px;");
+                        fileLabel.setCursor(Cursor.HAND);
+                        fileLabel.setOnMouseClicked(e -> {
+                            try {
+                                client.downloadFile(msg);
+                            } catch (IOException ex) {
+                                ex.printStackTrace();
+                            }
+                        });
+                        if (msg.getSentBy() == null) {
+                            messagePane.setAlignment(Pos.CENTER);
+                            senderLabel.setStyle("-fx-text-fill: #808080;");
+                            messagePane.getChildren().add(fileLabel);
+                        } else if (msg.getSentBy().equals(username)) {
+                            messagePane.setAlignment(Pos.TOP_RIGHT);
+                            senderLabel.setStyle("-fx-text-fill: #0000FF;");
+                            messagePane.getChildren().addAll(fileLabel, senderLabel);
+                        } else {
+                            messagePane.setAlignment(Pos.TOP_LEFT);
+                            senderLabel.setStyle("-fx-text-fill: #008000;");
+                            messagePane.getChildren().addAll(senderLabel, fileLabel);
+                        }
                     }
-
                     setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
                     setGraphic(messagePane);
                 }
             };
         }
     }
+
 }

@@ -5,9 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.awt.*;
 import java.io.*;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
+import java.util.List;
 
 @Getter
 @Slf4j
@@ -47,6 +51,7 @@ public class Client {
             case MESSAGE -> {
                 messageList.get(packet.getMessage().getChatRoomId()).add(packet.getMessage());
                 controller.updateMessage();
+                controller.updateChatList();
             }
             case NEW_USER -> {
                 if (!packet.getUser().getUsername().equals(username)) {
@@ -65,7 +70,9 @@ public class Client {
                 chatRooms.forEach(chatRoom -> {
                     if (chatRoom.getUsers().contains(packet.getUser().getUsername())) {
                         messageList.get(chatRoom.getId()).add(Message.builder()
+                                .timestamp(System.currentTimeMillis())
                                 .chatRoomId(chatRoom.getId())
+                                .type(MessageType.TEXT)
                                 .data("User " + packet.getUser().getUsername() + " has left the chat room")
                                 .build());
                     }
@@ -117,8 +124,10 @@ public class Client {
             messageList.put(chatRoom.getId(), new ArrayList<>());
             sendPacket(Packet.builder().type(PacketType.CREATE_CHAT).user(User.builder().username(username).build()).chatRoom(chatRoom).build());
             Message welcomeMessage = Message.builder()
+                    .timestamp(System.currentTimeMillis())
+                    .type(MessageType.TEXT)
                     .chatRoomId(chatRoom.getId())
-                    .data("Successfully created a private chat" )
+                    .data("Successfully created a private chat")
                     .build();
             sendPacket(Packet.builder().type(PacketType.MESSAGE).message(welcomeMessage).build());
             return chatRoom;
@@ -143,6 +152,8 @@ public class Client {
             messageList.put(chatRoom.getId(), new ArrayList<>());
             sendPacket(Packet.builder().type(PacketType.CREATE_CHAT).user(User.builder().username(username).build()).chatRoom(chatRoom).build());
             Message welcomeMessage = Message.builder()
+                    .timestamp(System.currentTimeMillis())
+                    .type(MessageType.TEXT)
                     .chatRoomId(chatRoom.getId())
                     .data("Successfully created chat room")
                     .build();
@@ -179,5 +190,38 @@ public class Client {
             log.error(e.getMessage());
         }
         return null;
+    }
+
+    public void downloadFile(Message msg) throws IOException {
+        String filename = msg.getFileName(); // 文件名
+        byte[] fileData = Base64.getDecoder().decode(msg.getData()); // 文件数据
+        String savePath = "/Users/suih/Downloads/"; // 默认下载路径
+        File file = new File(savePath + filename);
+        FileOutputStream fos = new FileOutputStream(file);
+        fos.write(fileData);
+        fos.close();
+        Desktop desktop = Desktop.getDesktop();
+        desktop.open(file);
+    }
+
+    public void sendFile(String chatRoomID, File file) {
+        try {
+            Path filePath = file.toPath();
+            byte[] fileContent = Files.readAllBytes(filePath);
+            String base64Encoded = Base64.getEncoder().encodeToString(fileContent);
+            Message message = Message.builder()
+                    .chatRoomId(chatRoomID)
+                    .timestamp(System.currentTimeMillis())
+                    .sentBy(username)
+                    .fileName(file.getName())
+                    .data(base64Encoded)
+                    .type(MessageType.FILE)
+                    .build();
+            sendPacket(Packet.builder().type(PacketType.MESSAGE).message(message).build());
+            messageList.get(chatRoomID).add(message);
+            controller.updateMessage();
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
     }
 }

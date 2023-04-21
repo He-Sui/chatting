@@ -16,14 +16,21 @@ public class Message {
 
     private String data;
 
+    private MessageType type;
+    private String fileName;
+
     @JsonCreator
     public Message(@JsonProperty("chatRoomId") String chatRoomId,
                    @JsonProperty("timestamp") Long timestamp,
                    @JsonProperty("sentBy") String sentBy,
-                   @JsonProperty("data") String data) {
+                   @JsonProperty("data") String data,
+                   @JsonProperty("type") MessageType type,
+                   @JsonProperty("fileName") String fileName) {
         this.chatRoomId = chatRoomId;
         this.timestamp = timestamp;
         this.sentBy = sentBy;
         this.data = data;
+        this.type = type;
+        this.fileName = fileName;
     }
 }
