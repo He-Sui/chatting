@@ -1,8 +1,6 @@
 package cn.edu.sustech.cs209.chatting.client;
 
 import javafx.application.Application;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Scene;
 import javafx.stage.Stage;
 import lombok.SneakyThrows;
 
@@ -15,13 +13,9 @@ public class Main extends Application {
     @Override
     @SneakyThrows
     public void start(Stage stage) {
-        FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("main.fxml"));
-        stage.setScene(new Scene(fxmlLoader.load()));
         stage.setTitle("Chatting Client");
-        Controller controller = fxmlLoader.getController();
-        stage.setOnCloseRequest(e -> {
-            controller.closeClient();
-        });
-        stage.show();
+        Client client = new Client("localhost", 2345);
+        SceneManager sceneManager = new SceneManager(stage, client);
+        sceneManager.showLoginScene();
     }
 }

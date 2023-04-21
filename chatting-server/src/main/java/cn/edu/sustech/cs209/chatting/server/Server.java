@@ -71,7 +71,9 @@ public class Server {
     }
 
     public void clientLogout(String username) {
-        onlineUsers.remove(username);
-        notifyAllUsers(Packet.builder().type(PacketType.LOGOUT).user(User.builder().username(username).build()).build());
+        if (username != null && onlineUsers.containsKey(username)) {
+            onlineUsers.remove(username);
+            notifyAllUsers(Packet.builder().type(PacketType.LOGOUT).user(User.builder().username(username).build()).build());
+        }
     }
 }

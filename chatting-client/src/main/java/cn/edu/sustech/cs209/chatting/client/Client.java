@@ -17,9 +17,19 @@ import java.util.List;
 @Slf4j
 public class Client {
     private final Socket socket;
-    private final Controller controller;
+
+    public void setReceivingPacketThread(Thread receivingPacketThread) {
+        this.receivingPacketThread = receivingPacketThread;
+    }
+
+    public void setController(Controller controller) {
+        this.controller = controller;
+    }
+    private Controller controller;
     private final BufferedReader in;
     private final BufferedWriter out;
+
+
     private String username;
     private final ObjectMapper objectMapper;
     private final Set<String> users;
@@ -28,11 +38,9 @@ public class Client {
     private final Map<String, List<Message>> messageList;
     private Thread receivingPacketThread;
 
-    public Client(String host, int port, String username, Controller controller) {
+    public Client(String host, int port) {
         chatRooms = new HashSet<>();
-        this.controller = controller;
         objectMapper = new ObjectMapper();
-        this.username = username;
         users = new HashSet<>();
         messageList = new HashMap<>();
         try {
@@ -98,11 +106,23 @@ public class Client {
         receivingPacketThread.start();
     }
 
-    public void login() {
-        sendPacket(Packet.builder().type(PacketType.LOGIN).user(User.builder().username(username).build()).build());
+    public void register(String username, String password) {
+        sendPacket(Packet.builder().type(PacketType.REGISTER).user(User.builder().username(username).password(password).build()).build());
+        Packet receive = receivePacket();
+        if (receive.getType() == PacketType.REGISTER_SUCCESS) {
+            log.info("Register Success");
+        } else {
+            log.info("Register Failed");
+            throw new RuntimeException("Register Failed");
+        }
+    }
+
+    public void login(String username, String password) {
+        sendPacket(Packet.builder().type(PacketType.LOGIN).user(User.builder().username(username).password(password).build()).build());
         Packet receive = receivePacket();
         if (receive.getType() == PacketType.LOGIN_SUCCESS) {
             log.info("Login Success");
+            this.username = username;
         } else {
             log.info("Login Failed");
             throw new RuntimeException("Login Failed");
@@ -192,10 +212,21 @@ public class Client {
         return null;
     }
 
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
     public void downloadFile(Message msg) throws IOException {
-        String filename = msg.getFileName(); // 文件名
-        byte[] fileData = Base64.getDecoder().decode(msg.getData()); // 文件数据
-        String savePath = "/Users/suih/Downloads/"; // 默认下载路径
+        String filename = msg.getFileName();
+        byte[] fileData = Base64.getDecoder().decode(msg.getData());
+        String basePath = "/Users/suih/Downloads/chatting/";
+        File dir = new File(basePath);
+        if (!dir.exists())
+            dir.mkdir();
+        String savePath = basePath + username + "/";
+        dir = new File(savePath);
+        if (!dir.exists())
+            dir.mkdir();
         File file = new File(savePath + filename);
         FileOutputStream fos = new FileOutputStream(file);
         fos.write(fileData);

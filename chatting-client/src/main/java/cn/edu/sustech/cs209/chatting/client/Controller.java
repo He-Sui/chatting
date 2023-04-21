@@ -12,7 +12,6 @@ import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.CheckBoxListCell;
-import javafx.scene.input.DragEvent;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.HBox;
@@ -33,7 +32,13 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class Controller implements Initializable {
+public class Controller{
+    public void setSceneManager(SceneManager sceneManager) {
+        this.sceneManager = sceneManager;
+    }
+
+    SceneManager sceneManager;
+    Client client;
 
     @FXML
     ListView<Message> chatContentList;
@@ -50,34 +55,10 @@ public class Controller implements Initializable {
     @FXML
     TextArea inputArea;
 
-    String username;
-
-    Client client;
-
     ChatRoom currentChat;
 
-    @Override
-    public void initialize(URL url, ResourceBundle resourceBundle) {
-
-        Dialog<String> dialog = new TextInputDialog();
-        dialog.setTitle("Login");
-        dialog.setHeaderText(null);
-        dialog.setContentText("Username:");
-
-        Optional<String> input = dialog.showAndWait();
-        if (input.isPresent() && !input.get().isEmpty()) {
-            username = input.get();
-            client = new Client("localhost", 2345, username, this);
-            try {
-                client.login();
-            } catch (Exception e) {
-                log.error("Invalid username {}, exiting", input);
-                Platform.exit();
-            }
-        } else {
-            log.warn("Invalid username {}, exiting", input);
-            Platform.exit();
-        }
+    public void init() {
+        client = sceneManager.getClient();
         inputArea.setOnDragOver(event -> {
             if (event.getGestureSource() != inputArea && event.getDragboard().hasFiles()) {
                 event.acceptTransferModes(TransferMode.COPY_OR_MOVE);
@@ -102,8 +83,12 @@ public class Controller implements Initializable {
             event.setDropCompleted(true);
             event.consume();
         });
+        sceneManager.getStage().setOnCloseRequest(e -> {
+            closeClient();
+            Platform.exit();
+        });
         client.startReceivingPacket();
-        currentUsername.setText("Current User: " + username);
+        currentUsername.setText("Current User: " + client.getUsername());
         chatContentList.setCellFactory(new MessageCellFactory());
         chatList.setCellFactory(new ChatRoomCellFactory());
     }
@@ -259,7 +244,7 @@ public class Controller implements Initializable {
             Message message = Message.builder()
                     .type(MessageType.TEXT)
                     .timestamp(System.currentTimeMillis())
-                    .sentBy(username)
+                    .sentBy(client.getUsername())
                     .chatRoomId(currentChat.getId())
                     .data(inputArea.getText())
                     .build();
@@ -316,7 +301,7 @@ public class Controller implements Initializable {
                         return;
                     }
                     if (item.getType() == ChatType.PRIVATE_CHAT)
-                        setText(item.getUsers().stream().filter(u -> !u.equals(username)).findFirst().orElse(""));
+                        setText(item.getUsers().stream().filter(u -> !u.equals(client.getUsername())).findFirst().orElse(""));
                     else {
 //                        if (item.getUsers().size() <= 3)
                         setText(item.getUsers().stream()
@@ -367,7 +352,7 @@ public class Controller implements Initializable {
                             msgLabel.setStyle("-fx-background-color: #CCCCCC; -fx-padding: 5px;");
                             senderLabel.setStyle("-fx-text-fill: #808080;");
                             messagePane.getChildren().add(msgLabel);
-                        } else if (msg.getSentBy().equals(username)) {
+                        } else if (msg.getSentBy().equals(client.getUsername())) {
                             messagePane.setAlignment(Pos.TOP_RIGHT);
                             msgLabel.setStyle("-fx-background-color: #ADD8E6; -fx-padding: 5px;");
                             senderLabel.setStyle("-fx-text-fill: #0000FF;");
@@ -380,7 +365,6 @@ public class Controller implements Initializable {
                         }
 
                     } else if (msg.getType() == MessageType.FILE) {
-                        // 文件消息
                         Label fileLabel = new Label(msg.getFileName());
                         fileLabel.setStyle("-fx-background-color: #FFFFFF; -fx-padding: 5px;");
                         fileLabel.setCursor(Cursor.HAND);
@@ -395,7 +379,7 @@ public class Controller implements Initializable {
                             messagePane.setAlignment(Pos.CENTER);
                             senderLabel.setStyle("-fx-text-fill: #808080;");
                             messagePane.getChildren().add(fileLabel);
-                        } else if (msg.getSentBy().equals(username)) {
+                        } else if (msg.getSentBy().equals(client.getUsername())) {
                             messagePane.setAlignment(Pos.TOP_RIGHT);
                             senderLabel.setStyle("-fx-text-fill: #0000FF;");
                             messagePane.getChildren().addAll(fileLabel, senderLabel);
@@ -411,5 +395,4 @@ public class Controller implements Initializable {
             };
         }
     }
-
 }

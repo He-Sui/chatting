@@ -52,27 +52,33 @@ public class ServerService implements Runnable {
         }
     }
 
-    public void login() {
-        Packet packet = receivePacket();
-        if (packet.getType() != PacketType.LOGIN)
-            sendPacket(Packet.builder().type(PacketType.LOGIN_FAILED).build());
-        else {
-            username = packet.getUser().getUsername();
-            if (server.getOnlineUsers().containsKey(username))
-                sendPacket(Packet.builder().type(PacketType.LOGIN_FAILED).build());
-            else if (username == null || username.equals(""))
-                sendPacket(Packet.builder().type(PacketType.LOGIN_FAILED).build());
-            else {
-                log.info("User {} logged in", username);
-                sendPacket(Packet.builder().type(PacketType.LOGIN_SUCCESS).build());
-                server.getOnlineUsers().keySet().forEach(user -> sendPacket(Packet.builder().type(PacketType.NEW_USER).user(User.builder().username(user).build()).build()));
-                server.addUser(username, this);
-            }
-        }
-    }
-
     private void handlePacket(Packet packet) {
         switch (packet.getType()) {
+            case LOGIN -> {
+                String username = packet.getUser().getUsername();
+                String password = packet.getUser().getPassword();
+                if (!server.getUsers().contains(new User(username, password)))
+                    sendPacket(Packet.builder().info("Username or Password not correct").type(PacketType.LOGIN_FAILED).build());
+                else if (server.getOnlineUsers().containsKey(username))
+                    sendPacket(Packet.builder().info("User already login"). type(PacketType.LOGIN_FAILED).build());
+                else {
+                    log.info("User {} logged in", username);
+                    this.username = username;
+                    sendPacket(Packet.builder().type(PacketType.LOGIN_SUCCESS).build());
+                    server.getOnlineUsers().keySet().forEach(user -> sendPacket(Packet.builder().type(PacketType.NEW_USER).user(User.builder().username(user).build()).build()));
+                    server.addUser(username, this);
+                }
+            }
+            case REGISTER -> {
+                String username = packet.getUser().getUsername();
+                String password = packet.getUser().getPassword();
+                if (server.getUsers().stream().map(User::getUsername).anyMatch(username::equals))
+                    sendPacket(Packet.builder().info("User already exist").type(PacketType.REGISTER_FAILED).build());
+                else {
+                    server.getUsers().add(new User(username, password));
+                    sendPacket(Packet.builder().type(PacketType.REGISTER_SUCCESS).build());
+                }
+            }
             case MESSAGE -> server.forward(packet);
             case CREATE_CHAT -> {
                 server.getChatRooms().put(packet.getChatRoom().getId(), packet.getChatRoom());
@@ -85,7 +91,6 @@ public class ServerService implements Runnable {
     public void run() {
         try {
             try {
-                login();
                 while (true) {
                     Packet packet = receivePacket();
                     handlePacket(packet);
