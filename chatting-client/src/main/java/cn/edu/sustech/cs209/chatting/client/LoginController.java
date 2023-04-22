@@ -17,7 +17,6 @@ public class LoginController {
     SceneManager sceneManager;
 
     public void setSceneManager(SceneManager sceneManager) {
-        System.out.println("set scene manager");
         this.sceneManager = sceneManager;
     }
 
@@ -30,10 +29,10 @@ public class LoginController {
     public void login() {
         String username = usernameTextField.getText();
         String password = passwordTextField.getText();
-        if (username.isEmpty() || password.isEmpty()) {
+        if (username == null || password == null || username.isEmpty() || password.isEmpty()) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setHeaderText("Username or password is empty");
-            alert.setContentText("Please enter your username and password");
+            alert.setHeaderText("Login Failed");
+            alert.setContentText("Username or Password is Empty");
             alert.showAndWait();
         } else {
             try {
@@ -41,8 +40,7 @@ public class LoginController {
                 sceneManager.showMainScene();
             } catch (RuntimeException e) {
                 Alert alert = new Alert(Alert.AlertType.ERROR);
-                alert.setTitle("Error");
-                alert.setHeaderText("Login failed");
+                alert.setHeaderText("Login Failed");
                 alert.setContentText(e.getMessage());
                 alert.showAndWait();
 

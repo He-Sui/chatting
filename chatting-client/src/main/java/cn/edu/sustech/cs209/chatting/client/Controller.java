@@ -5,7 +5,6 @@ import javafx.application.Platform;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
-import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
@@ -15,7 +14,10 @@ import javafx.scene.control.cell.CheckBoxListCell;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.stage.Stage;
 import javafx.util.Callback;
 import lombok.*;
@@ -25,7 +27,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -151,6 +152,8 @@ public class Controller{
 
     public void updateChatList() {
         Platform.runLater(() -> {
+            if(currentChat != null)
+                currentChat.resetUnreadMessageCount();
             chatList.getItems().clear();
             chatList.getItems().addAll(client.getChatRooms().stream().sorted((c1, c2) -> {
                         List<Message> m1 = client.getMessageList().get(c1.getId());
@@ -252,6 +255,7 @@ public class Controller{
                     .type(PacketType.MESSAGE)
                     .message(message)
                     .build());
+            client.getMessageLogger().log(message);
             client.getMessageList().get(currentChat.getId()).add(message);
             chatContentList.getItems().add(message);
             inputArea.clear();
@@ -262,6 +266,7 @@ public class Controller{
     @FXML
     public void handleChatSelection() {
         currentChat = chatList.getSelectionModel().getSelectedItem();
+        updateChatList();
         updateMessage();
     }
 
@@ -291,7 +296,13 @@ public class Controller{
         @Override
         public ListCell<ChatRoom> call(ListView<ChatRoom> param) {
             return new ListCell<ChatRoom>() {
-
+                private final StackPane pane = new StackPane();
+                private final Circle dot = new Circle(4, Color.RED);
+                {
+                    pane.getChildren().add( dot);
+                    dot.setVisible(false);
+                    pane.setAlignment(Pos.CENTER_LEFT);
+                }
                 @Override
                 public void updateItem(ChatRoom item, boolean empty) {
                     super.updateItem(item, empty);
@@ -303,21 +314,19 @@ public class Controller{
                     if (item.getType() == ChatType.PRIVATE_CHAT)
                         setText(item.getUsers().stream().filter(u -> !u.equals(client.getUsername())).findFirst().orElse(""));
                     else {
-//                        if (item.getUsers().size() <= 3)
                         setText(item.getUsers().stream()
                                 .sorted()
                                 .collect(Collectors.joining(", "))
                                 .concat(" (")
                                 .concat(String.valueOf(item.getUsers().size()))
                                 .concat(")"));
-//                        else
-//                            setText(item.getUsers().stream()
-//                                    .sorted()
-//                                    .limit(3)
-//                                    .collect(Collectors.joining(", "))
-//                                    .concat("... (")
-//                                    .concat(String.valueOf(item.getUsers().size()))
-//                                    .concat(")"));
+                    }
+                    if (item.getUnreadMessageCount() > 0 && item != currentChat) {
+                        dot.setVisible(true);
+                        setGraphic(pane);
+                    } else {
+                        dot.setVisible(false);
+                        setGraphic(pane);
                     }
                 }
             };

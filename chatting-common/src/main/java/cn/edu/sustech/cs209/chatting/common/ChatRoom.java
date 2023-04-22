@@ -13,14 +13,25 @@ public class ChatRoom {
     private String id;
     private ChatType type;
     private Set<String> users;
+    private int unreadMessageCount;
 
     @JsonCreator
     public ChatRoom(@JsonProperty("id") String id,
                     @JsonProperty("type") ChatType type,
-                    @JsonProperty("users") Set<String> users) {
+                    @JsonProperty("users") Set<String> users,
+                    @JsonProperty("unreadMessageCount") int unreadMessageCount) {
         this.id = id;
         this.type = type;
         this.users = users;
+        this.unreadMessageCount = unreadMessageCount;
+    }
+
+    public void addUnreadMessageCount() {
+        ++unreadMessageCount;
+    }
+
+    public void resetUnreadMessageCount() {
+        unreadMessageCount = 0;
     }
 
     @Override

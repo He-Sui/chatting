@@ -12,10 +12,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Getter
 @Slf4j
 public class Client {
+    private ChatLogger<Message> messageLogger;
+    private ChatLogger<ChatRoom> romLogger;
+    private ChatLogReader<Message> messageReader;
+    private ChatLogReader<ChatRoom> roomReader;
+    private static final String BASE_PATH = "/Users/suih/chatting/";
     private final Socket socket;
 
     public void setReceivingPacketThread(Thread receivingPacketThread) {
@@ -25,16 +31,16 @@ public class Client {
     public void setController(Controller controller) {
         this.controller = controller;
     }
+
     private Controller controller;
     private final BufferedReader in;
     private final BufferedWriter out;
-
-
     private String username;
     private final ObjectMapper objectMapper;
     private final Set<String> users;
 
     private final Set<ChatRoom> chatRooms;
+    private final Map<String, ChatRoom> chatRoomMap;
     private final Map<String, List<Message>> messageList;
     private Thread receivingPacketThread;
 
@@ -42,7 +48,8 @@ public class Client {
         chatRooms = new HashSet<>();
         objectMapper = new ObjectMapper();
         users = new HashSet<>();
-        messageList = new HashMap<>();
+        messageList = new ConcurrentHashMap<>();
+        chatRoomMap = new ConcurrentHashMap<>();
         try {
             socket = new Socket(host, port);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -52,6 +59,24 @@ public class Client {
         }
     }
 
+    public void initializeLogger() {
+        Path messagePath = Path.of(BASE_PATH + username + "/message.dat");
+        Path roomPath = Path.of(BASE_PATH + username + "/room.dat");
+        messageLogger = new ChatLogger<>(messagePath);
+        romLogger = new ChatLogger<>(roomPath);
+        messageReader = new ChatLogReader<>(Message.class, messagePath);
+        roomReader = new ChatLogReader<>(ChatRoom.class, roomPath);
+        roomReader.readChatLog().forEach(chatRoom -> {
+            chatRooms.add(chatRoom);
+            chatRoomMap.put(chatRoom.getId(), chatRoom);
+            messageList.put(chatRoom.getId(), new ArrayList<>());
+        });
+        messageReader.readChatLog().forEach(message -> {
+            messageList.get(message.getChatRoomId()).add(message);
+        });
+        controller.updateChatList();
+    }
+
     public void handlePacket(Packet packet) {
         if (packet == null)
             return;
@@ -59,6 +84,8 @@ public class Client {
             case MESSAGE -> {
                 messageList.get(packet.getMessage().getChatRoomId()).add(packet.getMessage());
                 controller.updateMessage();
+                chatRoomMap.get(packet.getMessage().getChatRoomId()).addUnreadMessageCount();
+                messageLogger.log(packet.getMessage());
                 controller.updateChatList();
             }
             case NEW_USER -> {
@@ -69,7 +96,9 @@ public class Client {
             }
             case CREATE_CHAT -> {
                 chatRooms.add(packet.getChatRoom());
+                chatRoomMap.put(packet.getChatRoom().getId(), packet.getChatRoom());
                 messageList.put(packet.getChatRoom().getId(), new ArrayList<>());
+                romLogger.log(packet.getChatRoom());
                 controller.updateChatList();
             }
             case LOGOUT -> {
@@ -113,7 +142,7 @@ public class Client {
             log.info("Register Success");
         } else {
             log.info("Register Failed");
-            throw new RuntimeException("Register Failed");
+            throw new RuntimeException(receive.getInfo());
         }
     }
 
@@ -125,7 +154,7 @@ public class Client {
             this.username = username;
         } else {
             log.info("Login Failed");
-            throw new RuntimeException("Login Failed");
+            throw new RuntimeException(receive.getInfo());
         }
     }
 
@@ -141,6 +170,8 @@ public class Client {
                     .id(UUID.randomUUID().toString())
                     .type(ChatType.PRIVATE_CHAT).users(user).build();
             chatRooms.add(chatRoom);
+            chatRoomMap.put(chatRoom.getId(), chatRoom);
+            romLogger.log(chatRoom);
             messageList.put(chatRoom.getId(), new ArrayList<>());
             sendPacket(Packet.builder().type(PacketType.CREATE_CHAT).user(User.builder().username(username).build()).chatRoom(chatRoom).build());
             Message welcomeMessage = Message.builder()
@@ -169,6 +200,8 @@ public class Client {
                     .id(UUID.randomUUID().toString())
                     .type(ChatType.GROUP_CHAT).users(user).build();
             chatRooms.add(chatRoom);
+            chatRoomMap.put(chatRoom.getId(), chatRoom);
+            romLogger.log(chatRoom);
             messageList.put(chatRoom.getId(), new ArrayList<>());
             sendPacket(Packet.builder().type(PacketType.CREATE_CHAT).user(User.builder().username(username).build()).chatRoom(chatRoom).build());
             Message welcomeMessage = Message.builder()
@@ -220,13 +253,10 @@ public class Client {
         String filename = msg.getFileName();
         byte[] fileData = Base64.getDecoder().decode(msg.getData());
         String basePath = "/Users/suih/Downloads/chatting/";
-        File dir = new File(basePath);
-        if (!dir.exists())
-            dir.mkdir();
         String savePath = basePath + username + "/";
-        dir = new File(savePath);
+        File dir = new File(savePath);
         if (!dir.exists())
-            dir.mkdir();
+            dir.mkdirs();
         File file = new File(savePath + filename);
         FileOutputStream fos = new FileOutputStream(file);
         fos.write(fileData);
@@ -250,6 +280,7 @@ public class Client {
                     .build();
             sendPacket(Packet.builder().type(PacketType.MESSAGE).message(message).build());
             messageList.get(chatRoomID).add(message);
+            messageLogger.log(message);
             controller.updateMessage();
         } catch (IOException e) {
             log.error(e.getMessage());

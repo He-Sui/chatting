@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -18,13 +19,27 @@ import java.util.concurrent.ConcurrentHashMap;
 public class Server {
     private final ServerSocket serverSocket;
     private final Map<String, ServerService> onlineUsers;
-    private final Map<String, ChatRoom> chatRooms = new HashMap<>();
+    private final Map<String, ChatRoom> chatRooms;
     private final Set<User> users;
+    private final ChatLogReader<ChatRoom> chatroomReader;
+    private final ChatLogReader<User> userReader;
+    private final ChatLogger<ChatRoom> chatroomWriter;
+    private final ChatLogger<User> userWriter;
+    private static final String BASE_PATH = "/Users/suih/chatting/";
 
     public Server(int port) {
         try {
             serverSocket = new ServerSocket(port);
+            Path userPath = Path.of(BASE_PATH + "server" + "/user.dat");
+            Path roomPath = Path.of(BASE_PATH + "server" + "/room.dat");
+            chatroomReader = new ChatLogReader<>(ChatRoom.class, roomPath);
+            userReader = new ChatLogReader<>(User.class, userPath);
+            chatroomWriter = new ChatLogger<>(roomPath);
+            userWriter = new ChatLogger<>(userPath);
             users = new HashSet<>();
+            users.addAll(userReader.readChatLog());
+            chatRooms = new HashMap<>();
+            chatroomReader.readChatLog().forEach(chatRoom -> chatRooms.put(chatRoom.getId(), chatRoom));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

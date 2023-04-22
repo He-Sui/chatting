@@ -39,26 +39,23 @@ public class RegisterController {
         String confirmPassword = confirmPasswordTextField.getText();
         if (username == null || username.isEmpty()) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle("Error");
-            alert.setHeaderText("Username is empty");
-            alert.setContentText("Please enter your username again");
+            alert.setHeaderText("Register Failed");
+            alert.setContentText("Username is empty");
             alert.showAndWait();
             usernameTextField.setText(null);
             passwordTextField.setText(null);
             confirmPasswordTextField.setText(null);
         } else if (password == null || password.length() < 6) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle("Error");
-            alert.setHeaderText("Password is too short");
-            alert.setContentText("Please enter your password again");
+            alert.setHeaderText("Register Failed");
+            alert.setContentText("Password Should Longer than 6 Characters");
             alert.showAndWait();
             passwordTextField.setText(null);
             confirmPasswordTextField.setText(null);
         } else if (!password.equals(confirmPassword)) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle("Error");
-            alert.setHeaderText("Password are not the same");
-            alert.setContentText("Please enter your password again");
+            alert.setHeaderText("Register Failed");
+            alert.setContentText("Password and Confirm Password are Not the Same");
             alert.showAndWait();
             passwordTextField.setText(null);
             confirmPasswordTextField.setText(null);
@@ -69,7 +66,7 @@ public class RegisterController {
             } catch (RuntimeException e) {
                 Alert alert = new Alert(Alert.AlertType.ERROR);
                 alert.setTitle("Error");
-                alert.setHeaderText("Register failed");
+                alert.setHeaderText("Register Failed");
                 alert.setContentText(e.getMessage());
                 alert.showAndWait();
                 usernameTextField.setText(null);

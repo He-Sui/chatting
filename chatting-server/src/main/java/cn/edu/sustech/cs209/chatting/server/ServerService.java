@@ -58,9 +58,9 @@ public class ServerService implements Runnable {
                 String username = packet.getUser().getUsername();
                 String password = packet.getUser().getPassword();
                 if (!server.getUsers().contains(new User(username, password)))
-                    sendPacket(Packet.builder().info("Username or Password not correct").type(PacketType.LOGIN_FAILED).build());
+                    sendPacket(Packet.builder().info("Username or Password not Correct").type(PacketType.LOGIN_FAILED).build());
                 else if (server.getOnlineUsers().containsKey(username))
-                    sendPacket(Packet.builder().info("User already login"). type(PacketType.LOGIN_FAILED).build());
+                    sendPacket(Packet.builder().info("User Already Login"). type(PacketType.LOGIN_FAILED).build());
                 else {
                     log.info("User {} logged in", username);
                     this.username = username;
@@ -73,14 +73,17 @@ public class ServerService implements Runnable {
                 String username = packet.getUser().getUsername();
                 String password = packet.getUser().getPassword();
                 if (server.getUsers().stream().map(User::getUsername).anyMatch(username::equals))
-                    sendPacket(Packet.builder().info("User already exist").type(PacketType.REGISTER_FAILED).build());
+                    sendPacket(Packet.builder().info("Username Already Exist").type(PacketType.REGISTER_FAILED).build());
                 else {
-                    server.getUsers().add(new User(username, password));
+                    User user = new User(username, password);
+                    server.getUsers().add(user);
+                    server.getUserWriter().log(user);
                     sendPacket(Packet.builder().type(PacketType.REGISTER_SUCCESS).build());
                 }
             }
             case MESSAGE -> server.forward(packet);
             case CREATE_CHAT -> {
+                server.getChatroomWriter().log(packet.getChatRoom());
                 server.getChatRooms().put(packet.getChatRoom().getId(), packet.getChatRoom());
                 server.forward(packet);
             }

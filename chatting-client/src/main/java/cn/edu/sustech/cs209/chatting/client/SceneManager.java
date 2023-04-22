@@ -53,6 +53,7 @@ public class SceneManager {
     public void showMainScene() {
         stage.setScene(mainScene);
         client.getController().init();
+        client.initializeLogger();
         stage.show();
     }
 }
