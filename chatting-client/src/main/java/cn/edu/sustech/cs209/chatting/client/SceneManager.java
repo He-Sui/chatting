@@ -11,49 +11,50 @@ import java.io.IOException;
 @Slf4j
 @Getter
 public class SceneManager {
-    private final Stage stage;
-    private Scene loginScene;
-    private Scene registerScene;
-    private Scene mainScene;
-    private final Client client;
 
-    public SceneManager(Stage stage, Client client) {
-        this.stage = stage;
-        this.client = client;
-        initScenes();
-    }
+  private final Stage stage;
+  private Scene loginScene;
+  private Scene registerScene;
+  private Scene mainScene;
+  private final Client client;
 
-    private void initScenes() {
-        try {
-            FXMLLoader loginLoader = new FXMLLoader(getClass().getResource("login.fxml"));
-            FXMLLoader registerLoader = new FXMLLoader(getClass().getResource("register.fxml"));
-            FXMLLoader mainLoader = new FXMLLoader(getClass().getResource("main.fxml"));
-            loginScene = new Scene(loginLoader.load());
-            registerScene = new Scene(registerLoader.load());
-            mainScene = new Scene(mainLoader.load());
-            client.setController(mainLoader.getController());
-            ((LoginController) loginLoader.getController()).setSceneManager(this);
-            ((RegisterController) registerLoader.getController()).setSceneManager(this);
-            ((Controller) mainLoader.getController()).setSceneManager(this);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+  public SceneManager(Stage stage, Client client) {
+    this.stage = stage;
+    this.client = client;
+    initScenes();
+  }
 
-    public void showLoginScene() {
-        stage.setScene(loginScene);
-        stage.show();
+  private void initScenes() {
+    try {
+      FXMLLoader loginLoader = new FXMLLoader(getClass().getResource("login.fxml"));
+      FXMLLoader registerLoader = new FXMLLoader(getClass().getResource("register.fxml"));
+      FXMLLoader mainLoader = new FXMLLoader(getClass().getResource("main.fxml"));
+      loginScene = new Scene(loginLoader.load());
+      registerScene = new Scene(registerLoader.load());
+      mainScene = new Scene(mainLoader.load());
+      client.setController(mainLoader.getController());
+      ((LoginController) loginLoader.getController()).setSceneManager(this);
+      ((RegisterController) registerLoader.getController()).setSceneManager(this);
+      ((Controller) mainLoader.getController()).setSceneManager(this);
+    } catch (IOException e) {
+      e.printStackTrace();
     }
+  }
 
-    public void showRegisterScene() {
-        stage.setScene(registerScene);
-        stage.show();
-    }
+  public void showLoginScene() {
+    stage.setScene(loginScene);
+    stage.show();
+  }
 
-    public void showMainScene() {
-        stage.setScene(mainScene);
-        client.getController().init();
-        client.initializeLogger();
-        stage.show();
-    }
+  public void showRegisterScene() {
+    stage.setScene(registerScene);
+    stage.show();
+  }
+
+  public void showMainScene() {
+    stage.setScene(mainScene);
+    client.getController().init();
+    client.initializeLogger();
+    stage.show();
+  }
 }

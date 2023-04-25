@@ -8,29 +8,30 @@ import lombok.Data;
 @Builder
 @Data
 public class Message {
-    private String chatRoomId;
 
-    private Long timestamp;
+  private String chatRoomId;
 
-    private String sentBy;
+  private Long timestamp;
 
-    private String data;
+  private String sentBy;
 
-    private MessageType type;
-    private String fileName;
+  private String data;
 
-    @JsonCreator
-    public Message(@JsonProperty("chatRoomId") String chatRoomId,
-                   @JsonProperty("timestamp") Long timestamp,
-                   @JsonProperty("sentBy") String sentBy,
-                   @JsonProperty("data") String data,
-                   @JsonProperty("type") MessageType type,
-                   @JsonProperty("fileName") String fileName) {
-        this.chatRoomId = chatRoomId;
-        this.timestamp = timestamp;
-        this.sentBy = sentBy;
-        this.data = data;
-        this.type = type;
-        this.fileName = fileName;
-    }
+  private MessageType type;
+  private String fileName;
+
+  @JsonCreator
+  public Message(@JsonProperty("chatRoomId") String chatRoomId,
+      @JsonProperty("timestamp") Long timestamp,
+      @JsonProperty("sentBy") String sentBy,
+      @JsonProperty("data") String data,
+      @JsonProperty("type") MessageType type,
+      @JsonProperty("fileName") String fileName) {
+    this.chatRoomId = chatRoomId;
+    this.timestamp = timestamp;
+    this.sentBy = sentBy;
+    this.data = data;
+    this.type = type;
+    this.fileName = fileName;
+  }
 }
