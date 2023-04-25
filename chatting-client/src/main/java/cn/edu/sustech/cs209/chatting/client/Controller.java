@@ -27,13 +27,14 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class Controller{
+public class Controller {
     public void setSceneManager(SceneManager sceneManager) {
         this.sceneManager = sceneManager;
     }
@@ -152,7 +153,7 @@ public class Controller{
 
     public void updateChatList() {
         Platform.runLater(() -> {
-            if(currentChat != null)
+            if (currentChat != null)
                 currentChat.resetUnreadMessageCount();
             chatList.getItems().clear();
             chatList.getItems().addAll(client.getChatRooms().stream().sorted((c1, c2) -> {
@@ -298,11 +299,13 @@ public class Controller{
             return new ListCell<ChatRoom>() {
                 private final StackPane pane = new StackPane();
                 private final Circle dot = new Circle(4, Color.RED);
+
                 {
-                    pane.getChildren().add( dot);
+                    pane.getChildren().add(dot);
                     dot.setVisible(false);
                     pane.setAlignment(Pos.CENTER_LEFT);
                 }
+
                 @Override
                 public void updateItem(ChatRoom item, boolean empty) {
                     super.updateItem(item, empty);
@@ -311,15 +314,31 @@ public class Controller{
                         setGraphic(null);
                         return;
                     }
-                    if (item.getType() == ChatType.PRIVATE_CHAT)
-                        setText(item.getUsers().stream().filter(u -> !u.equals(client.getUsername())).findFirst().orElse(""));
-                    else {
-                        setText(item.getUsers().stream()
-                                .sorted()
-                                .collect(Collectors.joining(", "))
-                                .concat(" (")
-                                .concat(String.valueOf(item.getUsers().size()))
-                                .concat(")"));
+                    List<Message> m = client.getMessageList().get(item.getId());
+                    long t = m == null || m.isEmpty() ? 0 : m.get(m.size() - 1).getTimestamp();
+                    Date date = new Date(t);
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                    if (item.getType() == ChatType.PRIVATE_CHAT) {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append(item.getUsers().stream().filter(u -> !u.equals(client.getUsername())).findFirst().orElse(""));
+                        if (client.getUsers().contains(item.getUsers().stream().filter(u -> !u.equals(client.getUsername())).findFirst().orElse("")))
+                            sb.append(" [Online] ");
+                        else
+                            sb.append(" [Offline] ");
+                        if (t > 0)
+                            sb.append(sdf.format(date));
+                        setText(sb.toString());
+                    } else {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append(item.getUsers().stream()
+                                        .sorted()
+                                        .collect(Collectors.joining(", ")))
+                                .append(" (")
+                                .append(item.getUsers().size())
+                                .append(") ");
+                        if(t > 0)
+                            sb.append(sdf.format(date));
+                        setText(sb.toString());
                     }
                     if (item.getUnreadMessageCount() > 0 && item != currentChat) {
                         dot.setVisible(true);

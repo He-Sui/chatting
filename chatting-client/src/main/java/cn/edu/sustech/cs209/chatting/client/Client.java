@@ -92,6 +92,7 @@ public class Client {
                 if (!packet.getUser().getUsername().equals(username)) {
                     users.add(packet.getUser().getUsername());
                     controller.updateOnlineCnt();
+                    controller.updateChatList();
                 }
             }
             case CREATE_CHAT -> {
@@ -106,14 +107,17 @@ public class Client {
                 controller.updateOnlineCnt();
                 chatRooms.forEach(chatRoom -> {
                     if (chatRoom.getUsers().contains(packet.getUser().getUsername())) {
-                        messageList.get(chatRoom.getId()).add(Message.builder()
+                        Message message = Message.builder()
                                 .timestamp(System.currentTimeMillis())
                                 .chatRoomId(chatRoom.getId())
                                 .type(MessageType.TEXT)
                                 .data("User " + packet.getUser().getUsername() + " has left the chat room")
-                                .build());
+                                .build();
+                        messageList.get(chatRoom.getId()).add(message);
+                        messageLogger.log(message);
                     }
                 });
+                controller.updateChatList();
                 controller.updateMessage();
             }
         }
