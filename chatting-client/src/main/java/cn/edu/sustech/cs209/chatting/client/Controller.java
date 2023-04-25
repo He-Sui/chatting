@@ -170,16 +170,6 @@ public class Controller {
         });
     }
 
-    /**
-     * A new dialog should contain a multi-select list, showing all user's name.
-     * You can select several users that will be joined in the group chat, including yourself.
-     * <p>
-     * The naming rule for group chats is similar to WeChat:
-     * If there are > 3 users: display the first three usernames, sorted in lexicographic order, then use ellipsis with the number of users, for example:
-     * UserA, UserB, UserC... (10)
-     * If there are <= 3 users: do not display the ellipsis, for example:
-     * UserA, UserB (2)
-     */
     @FXML
     public void createGroupChat() {
         val stage = new Stage();
@@ -235,13 +225,6 @@ public class Controller {
         stage.showAndWait();
     }
 
-
-    /**
-     * Sends the message to the <b>currently selected</b> chat.
-     * <p>
-     * Blank messages are not allowed.
-     * After sending the message, you should clear the text input field.
-     */
     @FXML
     public void doSendMessage() {
         if (currentChat != null && !inputArea.getText().isEmpty()) {
@@ -336,7 +319,7 @@ public class Controller {
                                 .append(" (")
                                 .append(item.getUsers().size())
                                 .append(") ");
-                        if(t > 0)
+                        if (t > 0)
                             sb.append(sdf.format(date));
                         setText(sb.toString());
                     }
@@ -352,10 +335,6 @@ public class Controller {
         }
     }
 
-    /**
-     * You may change the cell factory if you changed the design of {@code Message} model.
-     * Hint: you may also define a cell factory for the chats displayed in the left panel, or simply override the toString method.
-     */
     private class MessageCellFactory implements Callback<ListView<Message>, ListCell<Message>> {
         @Override
         public ListCell<Message> call(ListView<Message> param) {
